@@ -347,4 +347,121 @@ def find_directed_imaps(independence_relationships: Dict[str, bool]) -> List[Tup
         if is_imap:
             valid_imaps.append(edges)
     
-    return valid_imaps 
+    return valid_imaps
+
+def plot_undirected_imaps(imaps: List[Tuple[str, str]], title: str = "Undirected I-maps"):
+    """
+    Plot all undirected I-maps in a single figure.
+    
+    Args:
+        imaps: List of edge sets for undirected I-maps
+        title: Title for the plot
+    """
+    import matplotlib.pyplot as plt
+    import networkx as nx
+    import math
+    
+    # Calculate grid dimensions
+    n_imaps = len(imaps)
+    n_cols = min(3, n_imaps)  # Maximum 3 columns
+    n_rows = math.ceil(n_imaps / n_cols)
+    
+    # Create figure and subplots
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5*n_rows))
+    if n_rows == 1 and n_cols == 1:
+        axes = np.array([axes])
+    axes = axes.flatten()
+    
+    # Plot each I-map
+    for i, edges in enumerate(imaps):
+        G = nx.Graph()
+        G.add_nodes_from(['A', 'B', 'C'])
+        G.add_edges_from(edges)
+        
+        # Create subplot
+        ax = axes[i]
+        pos = nx.spring_layout(G, seed=42)  # Fixed seed for consistent layout
+        
+        # Draw nodes
+        nx.draw_networkx_nodes(G, pos, node_color='lightblue', 
+                             node_size=1000, ax=ax)
+        
+        # Draw edges
+        nx.draw_networkx_edges(G, pos, width=2, ax=ax)
+        
+        # Draw labels
+        nx.draw_networkx_labels(G, pos, font_size=12, font_weight='bold', ax=ax)
+        
+        # Set title for subplot
+        ax.set_title(f"I-map {i+1}")
+        ax.axis('off')
+    
+    # Hide unused subplots
+    for j in range(i + 1, len(axes)):
+        axes[j].axis('off')
+    
+    # Set main title
+    plt.suptitle(title, fontsize=16, y=1.02)
+    plt.tight_layout()
+    plt.show()
+
+def plot_directed_imaps(imaps: List[Tuple[str, str]], title: str = "Directed Acyclic I-maps"):
+    """
+    Plot all directed acyclic I-maps in a single figure.
+    
+    Args:
+        imaps: List of edge sets for directed I-maps
+        title: Title for the plot
+    """
+    import matplotlib.pyplot as plt
+    import networkx as nx
+    import math
+    
+    # Calculate grid dimensions
+    n_imaps = len(imaps)
+    n_cols = min(3, n_imaps)  # Maximum 3 columns
+    n_rows = math.ceil(n_imaps / n_cols)
+    
+    # Create figure and subplots
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 5*n_rows))
+    if n_rows == 1 and n_cols == 1:
+        axes = np.array([axes])
+    axes = axes.flatten()
+    
+    # Plot each I-map
+    for i, edges in enumerate(imaps):
+        G = nx.DiGraph()
+        G.add_nodes_from(['A', 'B', 'C'])
+        G.add_edges_from(edges)
+        
+        # Create subplot
+        ax = axes[i]
+        
+        # Use hierarchical layout for DAGs
+        pos = nx.spring_layout(G, seed=42)
+        
+        # Draw nodes
+        nx.draw_networkx_nodes(G, pos, node_color='lightblue', 
+                             node_size=1000, ax=ax)
+        
+        # Draw edges with arrows
+        nx.draw_networkx_edges(G, pos, width=2, 
+                             arrows=True, arrowsize=20,
+                             connectionstyle='arc3,rad=0.1',  # Curved edges
+                             ax=ax)
+        
+        # Draw labels
+        nx.draw_networkx_labels(G, pos, font_size=12, font_weight='bold', ax=ax)
+        
+        # Set title for subplot
+        ax.set_title(f"DAG I-map {i+1}")
+        ax.axis('off')
+    
+    # Hide unused subplots
+    for j in range(i + 1, len(axes)):
+        axes[j].axis('off')
+    
+    # Set main title
+    plt.suptitle(title, fontsize=16, y=1.02)
+    plt.tight_layout()
+    plt.show() 
