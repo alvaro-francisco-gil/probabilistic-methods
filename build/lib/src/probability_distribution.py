@@ -91,15 +91,38 @@ class ProbabilityDistribution:
             return True
         else:
             # Check P(X,Y|Z) = P(X|Z)P(Y|Z)
-            joint_cond = self.conditional(X, Z)
-            joint_cond.update(self.conditional(Y, Z))
-            joint_cond_XY = self.conditional(X, Y, Z)
-            
-            for (x, y, z), p_xy_z in joint_cond_XY.items():
-                p_x_z = joint_cond.get((x, z), 0)
-                p_y_z = joint_cond.get((y, z), 0)
-                if not np.isclose(p_xy_z, p_x_z * p_y_z, atol=1e-6):
-                    return False
+            for z_val in [True, False]:
+                # Get P(Z=z)
+                p_z = sum(prob for assignment, prob in self.probabilities.items()
+                         if assignment[self.variables.index(Z)] == z_val)
+                if p_z == 0:
+                    continue
+                
+                for x_val in [True, False]:
+                    for y_val in [True, False]:
+                        # Calculate P(X=x, Y=y, Z=z)
+                        p_xyz = sum(prob for assignment, prob in self.probabilities.items()
+                                  if assignment[self.variables.index(X)] == x_val and
+                                     assignment[self.variables.index(Y)] == y_val and
+                                     assignment[self.variables.index(Z)] == z_val)
+                        
+                        # Calculate P(X=x, Z=z)
+                        p_xz = sum(prob for assignment, prob in self.probabilities.items()
+                                 if assignment[self.variables.index(X)] == x_val and
+                                    assignment[self.variables.index(Z)] == z_val)
+                        
+                        # Calculate P(Y=y, Z=z)
+                        p_yz = sum(prob for assignment, prob in self.probabilities.items()
+                                 if assignment[self.variables.index(Y)] == y_val and
+                                    assignment[self.variables.index(Z)] == z_val)
+                        
+                        # Calculate conditional probabilities
+                        p_xy_given_z = p_xyz / p_z
+                        p_x_given_z = p_xz / p_z
+                        p_y_given_z = p_yz / p_z
+                        
+                        if not np.isclose(p_xy_given_z, p_x_given_z * p_y_given_z, atol=1e-6):
+                            return False
             return True
 
     def print_independence_calculation(self, X: str, Y: str):
@@ -109,6 +132,7 @@ class ProbabilityDistribution:
         idx_X = self.variables.index(X)
         idx_Y = self.variables.index(Y)
         print(f"\nCalculations for IP({X}, {Y}):")
+        is_independent = True
         for x_val in [True, False]:
             for y_val in [True, False]:
                 # Joint
@@ -121,6 +145,12 @@ class ProbabilityDistribution:
                           if assignment[idx_Y] == y_val)
                 print(f"P({X}={x_val}, {Y}={y_val}) = {p_xy:.3f}, "
                       f"P({X}={x_val})*P({Y}={y_val}) = {p_x:.3f}*{p_y:.3f} = {(p_x*p_y):.3f}")
+                if not np.isclose(p_xy, p_x * p_y, atol=1e-6):
+                    is_independent = False
+        if is_independent:
+            print(f"\nConclusion: {X} and {Y} are independent.")
+        else:
+            print(f"\nConclusion: {X} and {Y} are NOT independent.")
 
     def print_conditional_independence_calculation(self, X: str, Y: str, Z: str):
         """
@@ -130,10 +160,13 @@ class ProbabilityDistribution:
         idx_Y = self.variables.index(Y)
         idx_Z = self.variables.index(Z)
         print(f"\nCalculations for IP({X}, {Y}|{Z}):")
+        is_independent = True
         for z_val in [True, False]:
             # Marginal for Z
             p_z = sum(prob for assignment, prob in self.probabilities.items()
                       if assignment[idx_Z] == z_val)
+            if p_z == 0:
+                continue
             for x_val in [True, False]:
                 for y_val in [True, False]:
                     # Joint for X, Y, Z
@@ -155,6 +188,58 @@ class ProbabilityDistribution:
                     print(f"P({X}={x_val}, {Y}={y_val} | {Z}={z_val}) = {p_xy_given_z:.3f}, "
                           f"P({X}={x_val}|{Z}={z_val})*P({Y}={y_val}|{Z}={z_val}) = "
                           f"{p_x_given_z:.3f}*{p_y_given_z:.3f} = {(p_x_given_z*p_y_given_z):.3f}")
+                    if not np.isclose(p_xy_given_z, p_x_given_z * p_y_given_z, atol=1e-6):
+                        is_independent = False
+        if is_independent:
+            print(f"\nConclusion: {X} and {Y} are conditionally independent given {Z}.")
+        else:
+            print(f"\nConclusion: {X} and {Y} are NOT conditionally independent given {Z}.")
+
+    def print_individual_probabilities(self):
+        """
+        Print all individual probabilities (marginals, joints, and conditionals) for better understanding.
+        """
+        print("\nIndividual Probabilities:")
+        
+        # Print marginals
+        print("\nMarginal Probabilities:")
+        for var in self.variables:
+            idx = self.variables.index(var)
+            p_true = sum(prob for assignment, prob in self.probabilities.items() if assignment[idx])
+            p_false = 1 - p_true
+            print(f"P({var}=True) = {p_true:.3f}")
+            print(f"P({var}=False) = {p_false:.3f}")
+        
+        # Print joint probabilities for pairs
+        print("\nJoint Probabilities (Pairs):")
+        for i, var1 in enumerate(self.variables):
+            for var2 in self.variables[i+1:]:
+                idx1 = self.variables.index(var1)
+                idx2 = self.variables.index(var2)
+                print(f"\nP({var1}, {var2}):")
+                for v1 in [True, False]:
+                    for v2 in [True, False]:
+                        p_joint = sum(prob for assignment, prob in self.probabilities.items()
+                                    if assignment[idx1] == v1 and assignment[idx2] == v2)
+                        print(f"P({var1}={v1}, {var2}={v2}) = {p_joint:.3f}")
+        
+        # Print conditional probabilities
+        print("\nConditional Probabilities:")
+        for var1 in self.variables:
+            for var2 in self.variables:
+                if var1 != var2:
+                    idx1 = self.variables.index(var1)
+                    idx2 = self.variables.index(var2)
+                    print(f"\nP({var1} | {var2}):")
+                    for v2 in [True, False]:
+                        p_var2 = sum(prob for assignment, prob in self.probabilities.items()
+                                   if assignment[idx2] == v2)
+                        if p_var2 > 0:
+                            for v1 in [True, False]:
+                                p_joint = sum(prob for assignment, prob in self.probabilities.items()
+                                            if assignment[idx1] == v1 and assignment[idx2] == v2)
+                                p_cond = p_joint / p_var2
+                                print(f"P({var1}={v1} | {var2}={v2}) = {p_cond:.3f}")
 
 def find_undirected_imaps(independence_relationships: Dict[str, bool]) -> List[Tuple[str, str]]:
     """
