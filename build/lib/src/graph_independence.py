@@ -146,7 +146,7 @@ class DirectedGraphIndependence:
 
     def find_all_paths(self, start: str, end: str, observed: Set[str] = None) -> List[List[str]]:
         """
-        Find all directed paths between two nodes, considering observed variables.
+        Find all possible paths between two nodes, considering both edge directions.
         
         Args:
             start: Starting node
@@ -154,7 +154,7 @@ class DirectedGraphIndependence:
             observed: Set of observed variables (default: None)
             
         Returns:
-            List of all possible directed paths between start and end nodes
+            List of all possible paths between start and end nodes
         """
         if observed is None:
             observed = set()
@@ -167,7 +167,9 @@ class DirectedGraphIndependence:
                 all_paths.append(path.copy())
                 return
             
-            for neighbor in self.G.successors(current):
+            # Check both successors and predecessors
+            neighbors = set(self.G.successors(current)) | set(self.G.predecessors(current))
+            for neighbor in neighbors:
                 if neighbor not in visited:
                     visited.add(neighbor)
                     path.append(neighbor)
@@ -180,7 +182,7 @@ class DirectedGraphIndependence:
 
     def is_path_active(self, path: List[str], observed: Set[str]) -> bool:
         """
-        Check if a directed path is active given observed variables.
+        Check if a path is active given observed variables.
         
         Args:
             path: List of nodes representing a path
@@ -192,12 +194,14 @@ class DirectedGraphIndependence:
         for i in range(1, len(path) - 1):
             prev, current, next_node = path[i-1], path[i], path[i+1]
             
-            # Check for collider (v-structure)
-            if (prev, current) in self.G.edges and (next_node, current) in self.G.edges:
+            # Check if it's a collider (v-structure)
+            is_collider = ((prev, current) in self.G.edges and (next_node, current) in self.G.edges) or \
+                         ((current, prev) in self.G.edges and (current, next_node) in self.G.edges)
+            
+            if is_collider:
                 # Path is blocked if collider is not in observed set
                 if current not in observed:
                     return False
-            # Check for non-collider
             else:
                 # Path is blocked if non-collider is in observed set
                 if current in observed:
@@ -255,8 +259,80 @@ class DirectedGraphIndependence:
         result += f"): {'True' if is_independent else 'False'}\n"
         
         result += "Paths:\n"
-        for path, is_active in path_status:
-            path_str = " -> ".join(path)
-            result += f"- {path_str}: {'Active' if is_active else 'Blocked'}\n"
+        
+        if not path_status:
+            result += "• No paths found between nodes\n"
+        else:
+            for path, is_active in path_status:
+                # Build path string with arrows
+                path_parts = []
+                for i in range(len(path) - 1):
+                    current, next_node = path[i], path[i + 1]
+                    if (current, next_node) in self.G.edges:
+                        path_parts.append(f"{current} → {next_node}")
+                    else:
+                        path_parts.append(f"{current} ← {next_node}")
+                
+                # Construct the path string
+                if not path_parts:
+                    path_str = f"{X} → {Y}"  # Direct connection
+                else:
+                    # Get all nodes in order
+                    nodes = [X]
+                    for part in path_parts:
+                        if " → " in part:
+                            nodes.append(part.split(" → ")[1])
+                        else:
+                            nodes.append(part.split(" ← ")[1])
+                    
+                    # Build the path string with proper arrows
+                    path_str = nodes[0]
+                    for i in range(len(nodes) - 1):
+                        current, next_node = nodes[i], nodes[i + 1]
+                        if (current, next_node) in self.G.edges:
+                            path_str += f" → {next_node}"
+                        else:
+                            path_str += f" ← {next_node}"
+                
+                # Add path status and reason
+                result += f"• {path_str}: {'Active' if is_active else 'Blocked'}"
+                
+                # Add reason for the path status
+                if not is_active:
+                    # Find the blocking node
+                    for i in range(1, len(path) - 1):
+                        prev, current, next_node = path[i-1], path[i], path[i+1]
+                        is_collider = ((prev, current) in self.G.edges and (next_node, current) in self.G.edges) or \
+                                    ((current, prev) in self.G.edges and (current, next_node) in self.G.edges)
+                        
+                        if is_collider and current not in observed:
+                            result += f" ({current} is a collider)"
+                            break
+                        elif not is_collider and current in observed:
+                            result += f" ({current} is conditioned on)"
+                            break
+                else:
+                    # Add reason for active path
+                    for i in range(1, len(path) - 1):
+                        prev, current, next_node = path[i-1], path[i], path[i+1]
+                        is_collider = ((prev, current) in self.G.edges and (next_node, current) in self.G.edges) or \
+                                    ((current, prev) in self.G.edges and (current, next_node) in self.G.edges)
+                        
+                        if is_collider and current in observed:
+                            result += f" ({current} is an observed collider)"
+                            break
+                        elif not is_collider and current not in observed:
+                            result += f" ({current} is not conditioned on)"
+                            break
+                
+                result += "\n"
+        
+        # Add conclusion
+        if not path_status:
+            result += "Conclusion: No paths exist between nodes."
+        elif is_independent:
+            result += "Conclusion: All paths are blocked."
+        else:
+            result += "Conclusion: Active path exists."
         
         return result 

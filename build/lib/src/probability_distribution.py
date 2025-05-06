@@ -102,6 +102,60 @@ class ProbabilityDistribution:
                     return False
             return True
 
+    def print_independence_calculation(self, X: str, Y: str):
+        """
+        Print detailed calculations for marginal independence IP(X, Y).
+        """
+        idx_X = self.variables.index(X)
+        idx_Y = self.variables.index(Y)
+        print(f"\nCalculations for IP({X}, {Y}):")
+        for x_val in [True, False]:
+            for y_val in [True, False]:
+                # Joint
+                p_xy = sum(prob for assignment, prob in self.probabilities.items()
+                           if assignment[idx_X] == x_val and assignment[idx_Y] == y_val)
+                # Marginals
+                p_x = sum(prob for assignment, prob in self.probabilities.items()
+                          if assignment[idx_X] == x_val)
+                p_y = sum(prob for assignment, prob in self.probabilities.items()
+                          if assignment[idx_Y] == y_val)
+                print(f"P({X}={x_val}, {Y}={y_val}) = {p_xy:.3f}, "
+                      f"P({X}={x_val})*P({Y}={y_val}) = {p_x:.3f}*{p_y:.3f} = {(p_x*p_y):.3f}")
+
+    def print_conditional_independence_calculation(self, X: str, Y: str, Z: str):
+        """
+        Print detailed calculations for conditional independence IP(X, Y|Z).
+        """
+        idx_X = self.variables.index(X)
+        idx_Y = self.variables.index(Y)
+        idx_Z = self.variables.index(Z)
+        print(f"\nCalculations for IP({X}, {Y}|{Z}):")
+        for z_val in [True, False]:
+            # Marginal for Z
+            p_z = sum(prob for assignment, prob in self.probabilities.items()
+                      if assignment[idx_Z] == z_val)
+            for x_val in [True, False]:
+                for y_val in [True, False]:
+                    # Joint for X, Y, Z
+                    p_xyz = sum(prob for assignment, prob in self.probabilities.items()
+                                if assignment[idx_X] == x_val and assignment[idx_Y] == y_val and assignment[idx_Z] == z_val)
+                    # P(X=x, Y=y | Z=z)
+                    p_xy_given_z = p_xyz / p_z if p_z > 0 else 0
+
+                    # P(X=x, Z=z)
+                    p_xz = sum(prob for assignment, prob in self.probabilities.items()
+                               if assignment[idx_X] == x_val and assignment[idx_Z] == z_val)
+                    p_x_given_z = p_xz / p_z if p_z > 0 else 0
+
+                    # P(Y=y, Z=z)
+                    p_yz = sum(prob for assignment, prob in self.probabilities.items()
+                               if assignment[idx_Y] == y_val and assignment[idx_Z] == z_val)
+                    p_y_given_z = p_yz / p_z if p_z > 0 else 0
+
+                    print(f"P({X}={x_val}, {Y}={y_val} | {Z}={z_val}) = {p_xy_given_z:.3f}, "
+                          f"P({X}={x_val}|{Z}={z_val})*P({Y}={y_val}|{Z}={z_val}) = "
+                          f"{p_x_given_z:.3f}*{p_y_given_z:.3f} = {(p_x_given_z*p_y_given_z):.3f}")
+
 def find_undirected_imaps(independence_relationships: Dict[str, bool]) -> List[Tuple[str, str]]:
     """
     Find all undirected graphs that are I-maps of the given independence relationships.
