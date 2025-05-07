@@ -312,4 +312,131 @@ class BayesianNetwork:
             print(f"\nP({disease}=True | {symptoms}) = {prob_true:.6f}")
             print(f"P({disease}=False | {symptoms}) = {prob_false:.6f}")
         
-        return diagnosis 
+        return diagnosis
+    
+    def variable_elimination(self, query: Dict[str, bool], evidence: Dict[str, bool], 
+                           elimination_order: List[str] = None, verbose: bool = False) -> float:
+        """
+        Perform variable elimination to calculate P(query|evidence).
+        
+        Args:
+            query: Dictionary mapping query variables to their values
+            evidence: Dictionary mapping evidence variables to their values
+            elimination_order: Order in which to eliminate variables (if None, will be determined automatically)
+            verbose: If True, print intermediate calculations
+            
+        Returns:
+            The calculated probability
+        """
+        # Combine query and evidence
+        all_evidence = {**evidence, **query}
+        
+        # If no elimination order provided, use a simple topological sort
+        if elimination_order is None:
+            elimination_order = list(nx.topological_sort(self.G))
+            # Remove query and evidence variables from elimination order
+            elimination_order = [v for v in elimination_order if v not in all_evidence]
+        
+        # Initialize factors (CPTs)
+        factors = []
+        for variable in self.variables:
+            if variable in self.cpts:
+                cpt = self.cpts[variable]
+                # Create factor from CPT
+                factor = {}
+                for var_val in [True, False]:
+                    for parent_combo in cpt._generate_parent_combinations():
+                        parent_dict = dict(zip(cpt.parents, parent_combo))
+                        prob = cpt.get_probability(var_val, parent_dict)
+                        if prob > 0:
+                            # Create assignment dictionary
+                            assignment = {variable: var_val, **parent_dict}
+                            factor[tuple(sorted(assignment.items()))] = prob
+                factors.append(factor)
+        
+        if verbose:
+            print("\nInitial factors:")
+            for i, factor in enumerate(factors):
+                print(f"\nFactor {i+1}:")
+                for assignment, prob in factor.items():
+                    print(f"P({dict(assignment)}) = {prob:.4f}")
+        
+        # Eliminate variables one by one
+        for var in elimination_order:
+            if verbose:
+                print(f"\nEliminating variable {var}")
+            
+            # Find factors containing this variable
+            var_factors = []
+            remaining_factors = []
+            for factor in factors:
+                if any(var in dict(assignment).keys() for assignment in factor.keys()):
+                    var_factors.append(factor)
+                else:
+                    remaining_factors.append(factor)
+            
+            if not var_factors:
+                continue
+            
+            # Multiply factors containing the variable
+            product = {}
+            for factor in var_factors:
+                if not product:
+                    product = factor.copy()
+                else:
+                    new_product = {}
+                    for assignment1, prob1 in product.items():
+                        for assignment2, prob2 in factor.items():
+                            # Check if assignments are compatible
+                            dict1 = dict(assignment1)
+                            dict2 = dict(assignment2)
+                            if all(dict1.get(k, None) == dict2.get(k, None) 
+                                  for k in set(dict1.keys()) & set(dict2.keys())):
+                                # Combine assignments
+                                combined = {**dict1, **dict2}
+                                new_product[tuple(sorted(combined.items()))] = prob1 * prob2
+                    product = new_product
+            
+            if verbose:
+                print("\nProduct of factors containing", var)
+                for assignment, prob in product.items():
+                    print(f"P({dict(assignment)}) = {prob:.4f}")
+            
+            # Sum out the variable
+            marginalized = {}
+            for assignment, prob in product.items():
+                assignment_dict = dict(assignment)
+                # Remove the variable being eliminated
+                del assignment_dict[var]
+                new_assignment = tuple(sorted(assignment_dict.items()))
+                marginalized[new_assignment] = marginalized.get(new_assignment, 0) + prob
+            
+            if verbose:
+                print("\nAfter marginalizing", var)
+                for assignment, prob in marginalized.items():
+                    print(f"P({dict(assignment)}) = {prob:.4f}")
+            
+            # Add the new factor to remaining factors
+            remaining_factors.append(marginalized)
+            factors = remaining_factors
+        
+        # Final multiplication of remaining factors
+        final_prob = 1.0
+        for factor in factors:
+            factor_prob = 0.0
+            for assignment, prob in factor.items():
+                assignment_dict = dict(assignment)
+                # Check if assignment is consistent with evidence
+                if all(assignment_dict.get(k, None) == v for k, v in all_evidence.items() 
+                      if k in assignment_dict):
+                    factor_prob += prob
+            final_prob *= factor_prob
+        
+        # Normalize if needed
+        if query:
+            # Calculate denominator (marginal probability of evidence)
+            denominator = self.variable_elimination({}, evidence, elimination_order, verbose)
+            if denominator > 0:
+                final_prob /= denominator
+        
+        return final_prob 
