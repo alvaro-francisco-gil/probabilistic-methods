@@ -421,21 +421,60 @@ class BayesianNetwork:
             factors = remaining_factors
         
         # Final multiplication of remaining factors
-        final_prob = 1.0
+        if verbose:
+            print("\nFinal combination of remaining factors:")
+            print("P(query|evidence) = P(query,evidence) / P(evidence)")
+            print("\nCalculating P(query,evidence):")
+            print("We need to multiply the remaining factors and sum over all assignments consistent with evidence")
+        
+        # Multiply all remaining factors together
+        final_factor = {}
         for factor in factors:
-            factor_prob = 0.0
-            for assignment, prob in factor.items():
-                assignment_dict = dict(assignment)
-                # Check if assignment is consistent with evidence
-                if all(assignment_dict.get(k, None) == v for k, v in all_evidence.items() 
-                      if k in assignment_dict):
-                    factor_prob += prob
-            final_prob *= factor_prob
+            if not final_factor:
+                final_factor = factor.copy()
+            else:
+                new_factor = {}
+                for assignment1, prob1 in final_factor.items():
+                    for assignment2, prob2 in factor.items():
+                        # Check if assignments are compatible
+                        dict1 = dict(assignment1)
+                        dict2 = dict(assignment2)
+                        if all(dict1.get(k, None) == dict2.get(k, None) 
+                              for k in set(dict1.keys()) & set(dict2.keys())):
+                            # Combine assignments
+                            combined = {**dict1, **dict2}
+                            new_factor[tuple(sorted(combined.items()))] = prob1 * prob2
+                final_factor = new_factor
+        
+        if verbose:
+            print("\nFinal joint factor:")
+            for assignment, prob in final_factor.items():
+                print(f"P({dict(assignment)}) = {prob:.4f}")
+        
+        # Sum over assignments consistent with evidence
+        final_prob = 0.0
+        for assignment, prob in final_factor.items():
+            assignment_dict = dict(assignment)
+            if all(assignment_dict.get(k, None) == v for k, v in all_evidence.items() 
+                  if k in assignment_dict):
+                final_prob += prob
+                if verbose:
+                    print(f"Adding P({dict(assignment)}) = {prob:.4f}")
+        
+        if verbose:
+            print(f"\nP(query,evidence) = {final_prob:.6f}")
         
         # Normalize if needed
         if query:
+            if verbose:
+                print("\nCalculating P(evidence):")
+                print("We need to calculate the marginal probability of evidence")
             # Calculate denominator (marginal probability of evidence)
             denominator = self.variable_elimination({}, evidence, elimination_order, verbose)
+            if verbose:
+                print(f"\nP(evidence) = {denominator:.6f}")
+                print(f"Final result: P(query|evidence) = P(query,evidence) / P(evidence)")
+                print(f"P(query|evidence) = {final_prob:.6f} / {denominator:.6f} = {final_prob/denominator:.6f}")
             if denominator > 0:
                 final_prob /= denominator
         
