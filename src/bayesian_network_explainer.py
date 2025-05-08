@@ -1,4 +1,5 @@
 from typing import List, Set, Dict, Tuple, Optional, Any
+import networkx as nx
 from src.bayesian_network import BayesianNetwork
 import itertools
 
@@ -149,41 +150,138 @@ class InferenceEngine:
         return prob, steps
 
     def grouping(self, query: str, evidence: Dict[str, bool]) -> Tuple[float, List[str]]:
-        steps = ["Initial factors created"]
+        steps = ["Initializing factors from CPTs"]
         factors = self._initial_factors()
-        # reduce evidence
+        
+        # Incorporate evidence
         for var, val in evidence.items():
             factors = [f.reduce(var, val) if var in f.scope else f for f in factors]
-            steps.append(f"Reduced factors on {var}={val}")
-        # merge smallest-scope pairs
-        while len(factors) > 1:
-            best = None
-            for f1, f2 in itertools.combinations(factors, 2):
-                cost = len(set(f1.scope + f2.scope))
-                if best is None or cost < best[0]:
-                    best = (cost, f1, f2)
-            _, f1, f2 = best
-            steps.append(f"Grouping factors {f1.scope} and {f2.scope}")
-            merged = f1.multiply(f2)
-            factors = [f for f in factors if f not in (f1, f2)] + [merged]
-            steps.append(f"Merged to factor {merged.scope}")
-        # finalize
-        result = factors[0].normalize()
-        steps.append("Normalize final grouped factor")
-        idx = result.scope.index(query)
-        prob = sum(p for a, p in result.table.items() if a[idx])
-        return prob, steps
-
-    def join_tree(self) -> List[str]:
-        steps = [
-            "Moralize network: connect all co-parents",
-            "Triangulate: add fill-in edges by min-fill heuristic",
-            "Identify maximal cliques in chordal graph",
-            "Build clique tree via maximum spanning tree on sepset sizes",
-            "Assign CPTs to cliques covering their scope",
-            "Initialize potentials and pass messages for propagation"
-        ]
-        return steps
+            steps.append(f"Reduced factors on evidence {var}={val}")
+        
+        # Step 1: Moralize the graph
+        steps.append("Creating moral graph by connecting co-parents")
+        moral_graph = nx.Graph()
+        for node in self.bn.G.nodes():
+            moral_graph.add_node(node)
+        for u, v in self.bn.G.edges():
+            moral_graph.add_edge(u, v)
+        for node in self.bn.G.nodes():
+            parents = list(self.bn.G.predecessors(node))
+            for i in range(len(parents)):
+                for j in range(i+1, len(parents)):
+                    moral_graph.add_edge(parents[i], parents[j])
+        
+        # Step 2: Triangulate the graph
+        steps.append("Triangulating graph using min-fill heuristic")
+        triangulated = moral_graph.copy()
+        remaining = list(triangulated.nodes())
+        while remaining:
+            # Find node with minimum fill
+            min_fill = float('inf')
+            best_node = None
+            for node in remaining:
+                nbrs = list(triangulated.neighbors(node))
+                fill = sum(1 for i, j in itertools.combinations(nbrs, 2)
+                        if not triangulated.has_edge(i, j))
+                if fill < min_fill:
+                    min_fill = fill
+                    best_node = node
+            
+            # Add fill edges
+            nbrs = list(triangulated.neighbors(best_node))
+            for i, j in itertools.combinations(nbrs, 2):
+                if not triangulated.has_edge(i, j):
+                    triangulated.add_edge(i, j)
+            
+            remaining.remove(best_node)
+        
+        # Step 3: Find maximal cliques
+        steps.append("Finding maximal cliques in triangulated graph")
+        cliques = list(nx.find_cliques(triangulated))
+        steps.append(f"Found {len(cliques)} cliques")
+        
+        # Step 4: Build junction tree
+        steps.append("Building junction tree via maximum spanning tree")
+        jt = nx.Graph()
+        for i, clique in enumerate(cliques):
+            jt.add_node(i, vars=set(clique))
+        
+        # Add edges with weights based on intersection size
+        for i, j in itertools.combinations(range(len(cliques)), 2):
+            intersection = set(cliques[i]) & set(cliques[j])
+            if intersection:
+                jt.add_edge(i, j, weight=len(intersection), sepset=intersection)
+        
+        # Create maximum spanning tree
+        mst = nx.maximum_spanning_tree(jt, weight='weight')
+        
+        # Step 5: Assign factors to cliques
+        steps.append("Assigning factors to cliques")
+        potentials = {i: Factor([], {(): 1.0}) for i in range(len(cliques))}
+        for factor in factors:
+            scope_set = set(factor.scope)
+            # Find smallest containing clique
+            best_clique = None
+            best_size = float('inf')
+            for i, clique in enumerate(cliques):
+                if scope_set.issubset(set(clique)) and len(clique) < best_size:
+                    best_clique = i
+                    best_size = len(clique)
+            
+            if best_clique is not None:
+                potentials[best_clique] = potentials[best_clique].multiply(factor)
+                steps.append(f"Assigned factor {factor.scope} to clique {best_clique}")
+        
+        # Step 6: Perform message passing
+        steps.append("Performing belief propagation on junction tree")
+        root = 0  # Choose arbitrary root
+        
+        def collect_messages(node, parent=None):
+            for neighbor in mst.neighbors(node):
+                if neighbor != parent:
+                    collect_messages(neighbor, node)
+                    
+                    # Calculate message from neighbor to node
+                    sepset = mst[node][neighbor]['sepset']
+                    message = potentials[neighbor]
+                    
+                    # Marginalize out variables not in separator
+                    for var in list(message.scope):
+                        if var not in sepset:
+                            message = message.marginalize(var)
+                    
+                    # Update parent's potential
+                    potentials[node] = potentials[node].multiply(message)
+                    steps.append(f"Passed message from clique {neighbor} to {node}")
+        
+        # Run collection phase
+        collect_messages(root)
+        
+        # Step 7: Compute query result
+        steps.append(f"Computing marginal for {query}")
+        query_clique = None
+        for i, clique in enumerate(cliques):
+            if query in clique:
+                query_clique = i
+                break
+        
+        if query_clique is None:
+            raise ValueError(f"Query variable {query} not found in any clique")
+        
+        # Marginalize to get query distribution
+        marginal = potentials[query_clique]
+        for var in list(marginal.scope):
+            if var != query:
+                marginal = marginal.marginalize(var)
+        
+        # Normalize
+        marginal = marginal.normalize()
+        
+        # Get probability for query=True
+        prob_true = sum(prob for assignment, prob in marginal.table.items() 
+                    if assignment[0])  # Assuming query is the first variable
+        
+        return prob_true, steps
 
     def _find_path(self, start: str, end: str) -> List[str]:
         visited = set()
