@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Set, Tuple, Optional, Any
 import networkx as nx
 import matplotlib.pyplot as plt
 from collections import defaultdict
@@ -43,6 +43,14 @@ class ConditionalProbabilityTable:
         """
         parent_tuple = tuple(parent_values[parent] for parent in self.parents)
         return self.table.get((variable_value, parent_tuple), 0.0)
+    
+    def to_factor_entries(self) -> List[Dict[str, Any]]:
+        entries = []
+        for (val, ptuple), prob in self.table.items():
+            entry = {self.variable: val, 'prob': prob}
+            for i, p in enumerate(self.parents): entry[p] = ptuple[i]
+            entries.append(entry)
+        return entries
     
     def print_table(self, verbose: bool = False):
         """
@@ -98,15 +106,18 @@ class ConditionalProbabilityTable:
 
 class BayesianNetwork:
     def __init__(self):
-        """Initialize an empty Bayesian network."""
+        import networkx as nx
         self.G = nx.DiGraph()
-        self.cpts = {}  # Maps variable names to their CPTs
-        self.variables = set()
+        self.variables: Set[str] = set()
+        self.cpts: Dict[str, ConditionalProbabilityTable] = {}
+
+    def add_variable(self, var: str): self.variables.add(var); self.G.add_node(var)
+    def add_edge(self, p: str, c: str): self.G.add_edge(p, c)
+    def add_cpt(self, cpt: ConditionalProbabilityTable): self.cpts[cpt.variable] = cpt
+    def get_parents(self, var: str) -> List[str]: return list(self.G.predecessors(var))
+    def get_children(self, var: str) -> List[str]: return list(self.G.successors(var))
+    def get_cpt(self, var: str) -> List[Dict[str, Any]]: return self.cpts[var].to_factor_entries()
         
-    def add_variable(self, variable: str):
-        """Add a variable to the network."""
-        self.variables.add(variable)
-        self.G.add_node(variable)
         
     def add_edge(self, parent: str, child: str):
         """Add a directed edge from parent to child."""
