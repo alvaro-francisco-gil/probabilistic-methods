@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<probabilityNet version="1.0" type="InfluenceDiagram">
+  <name>Cancer Screening Decision</name>
+
+  <!-- VARIABLES -->
+  <variables>
+    <variable id="DiseaseStatus" name="Disease Status">
+      <type>chance</type>
+      <states>
+        <state>Cancer</state>
+        <state>NoCancer</state>
+      </states>
+    </variable>
+
+    <variable id="TestDecision" name="Perform Test?">
+      <type>decision</type>
+      <states>
+        <state>Yes</state>
+        <state>No</state>
+      </states>
+    </variable>
+
+    <variable id="TestResult" name="Test Result">
+      <type>chance</type>
+      <states>
+        <state>Positive</state>
+        <state>Negative</state>
+      </states>
+    </variable>
+
+    <variable id="TreatDecision" name="Administer Chemotherapy?">
+      <type>decision</type>
+      <states>
+        <state>Treat</state>
+        <state>NoTreat</state>
+      </states>
+    </variable>
+
+    <variable id="QALYs" name="QALYs">
+      <type>utility</type>
+      <states>
+        <state>Utility</state>
+      </states>
+    </variable>
+  </variables>
+
+  <!-- ARCS -->
+  <links>
+    <link>
+      <from>TestDecision</from>
+      <to>TestResult</to>
+    </link>
+    <link>
+      <from>DiseaseStatus</from>
+      <to>TestResult</to>
+    </link>
+    <link>
+      <from>TestResult</from>
+      <to>TreatDecision</to>
+    </link>
+    <link>
+      <from>DiseaseStatus</from>
+      <to>QALYs</to>
+    </link>
+    <link>
+      <from>TestDecision</from>
+      <to>QALYs</to>
+    </link>
+    <link>
+      <from>TreatDecision</from>
+      <to>QALYs</to>
+    </link>
+  </links>
+
+  <!-- POTENTIALS -->
+  <!-- Define CPTs and utility tables within OpenMarkov after loading -->
+</probabilityNet>

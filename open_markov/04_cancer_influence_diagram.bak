@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ProbModelXML formatVersion="0.2.0">
+  <ProbNet type="InfluenceDiagram">
+    <Comment showWhenOpeningNetwork="false"><![CDATA[<<Double click to add/modify comment>>]]></Comment>
+    <DecisionCriteria>
+      <Criterion name="---" unit="---" />
+    </DecisionCriteria>
+    <Variables>
+      <Variable name="Treat" type="finiteStates" role="decision">
+        <Coordinates x="748" y="503" />
+        <States>
+          <State name="no" />
+          <State name="yes" />
+        </States>
+      </Variable>
+      <Variable name="Test" type="finiteStates" role="decision">
+        <Coordinates x="512" y="505" />
+        <States>
+          <State name="no" />
+          <State name="yes" />
+        </States>
+      </Variable>
+      <Variable name="Disease Status" type="finiteStates" role="chance">
+        <Coordinates x="505" y="395" />
+        <States>
+          <State name="no_cancer" />
+          <State name="cancer" />
+        </States>
+      </Variable>
+      <Variable name="Test Result" type="finiteStates" role="chance">
+        <Coordinates x="745" y="302" />
+        <States>
+          <State name="positive" />
+          <State name="negative" />
+          <State name="no_result" />
+        </States>
+      </Variable>
+      <Variable name="QALY" type="numeric" role="utility">
+        <Coordinates x="880" y="407" />
+        <Unit />
+        <Precision>0.01</Precision>
+        <Criterion name="---" />
+      </Variable>
+      <Variable name="Genetic Trait" type="finiteStates" role="chance">
+        <Coordinates x="507" y="295" />
+        <States>
+          <State name="absent" />
+          <State name="present" />
+        </States>
+      </Variable>
+    </Variables>
+    <Links>
+      <Link directed="true">
+        <Variable name="Treat" />
+        <Variable name="QALY" />
+      </Link>
+      <Link directed="true">
+        <Variable name="Test" />
+        <Variable name="Test Result" />
+      </Link>
+      <Link directed="true">
+        <Variable name="Test" />
+        <Variable name="QALY" />
+      </Link>
+      <Link directed="true">
+        <Variable name="Disease Status" />
+        <Variable name="QALY" />
+      </Link>
+      <Link directed="true">
+        <Variable name="Disease Status" />
+        <Variable name="Treat" />
+      </Link>
+      <Link directed="true">
+        <Variable name="Disease Status" />
+        <Variable name="Test Result" />
+      </Link>
+      <Link directed="true">
+        <Variable name="Test Result" />
+        <Variable name="Treat" />
+      </Link>
+      <Link directed="true">
+        <Variable name="Genetic Trait" />
+        <Variable name="Disease Status" />
+      </Link>
+    </Links>
+    <Potentials>
+      <Potential type="Table" role="conditionalProbability">
+        <Variables>
+          <Variable name="Disease Status" />
+          <Variable name="Genetic Trait" />
+        </Variables>
+        <Values>0.975 0.025 0.85 0.15</Values>
+      </Potential>
+      <Potential type="Table" role="conditionalProbability">
+        <Variables>
+          <Variable name="Test Result" />
+          <Variable name="Test" />
+          <Variable name="Disease Status" />
+        </Variables>
+        <Values>0.0 0.0 1.0 0.03 0.97 0.0 0.0 0.0 1.0 0.8 0.2 0.0</Values>
+      </Potential>
+      <Potential type="Table" role="conditionalProbability">
+        <UtilityVariable name="QALY" />
+        <Variables>
+          <Variable name="Treat" />
+          <Variable name="Disease Status" />
+          <Variable name="Test" />
+        </Variables>
+        <Values>9.0 -1000.0 0.1 -1000.0 8.999 8.899 0.099 5.6</Values>
+      </Potential>
+      <Potential type="Table" role="conditionalProbability">
+        <Variables>
+          <Variable name="Genetic Trait" />
+        </Variables>
+        <Values>0.8 0.2</Values>
+      </Potential>
+    </Potentials>
+  </ProbNet>
+  <InferenceOptions>
+    <MulticriteriaOptions>
+      <SelectedAnalysisType>UNICRITERION</SelectedAnalysisType>
+      <Unicriterion>
+        <Scales>
+          <Scale Criterion="---" Value="1.0" />
+        </Scales>
+      </Unicriterion>
+      <CostEffectiveness>
+        <Scales>
+          <Scale Criterion="---" Value="1.0" />
+        </Scales>
+        <CE_Criteria>
+          <CE_Criterion Criterion="---" Value="Cost" />
+        </CE_Criteria>
+      </CostEffectiveness>
+    </MulticriteriaOptions>
+  </InferenceOptions>
+  <Evidence>
+    <EvidenceCase />
+    <EvidenceCase>
+      <Finding variable="Genetic Trait" state="absent" />
+    </EvidenceCase>
+  </Evidence>
+</ProbModelXML>
